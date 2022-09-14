@@ -1,0 +1,14 @@
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: mqtt-binding
+spec:
+  type: bindings.mqtt3
+  version: v1
+  metadata:
+  - name: url
+    value: "tcp://172.16.8.73:1883"
+  - name: topic
+    value: /abc/#
+  - name: consumerID
+    value: "{uuid}"

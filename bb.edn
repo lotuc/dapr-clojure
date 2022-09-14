@@ -1,0 +1,3 @@
+{:paths ["bb"]
+ :tasks {spit-envs envs/spit-envs
+         diff-envs-and-wait envs/diff-envs-and-wait}}

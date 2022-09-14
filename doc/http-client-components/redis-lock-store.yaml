@@ -1,0 +1,13 @@
+# https://docs.dapr.io/reference/components-reference/supported-locks/redis-lock/
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: redis-lock-store
+spec:
+  type: lock.redis
+  version: v1
+  metadata:
+  - name: redisHost
+    value: localhost:6379
+  - name: redisPassword
+    value: ""

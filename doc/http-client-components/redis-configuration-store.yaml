@@ -1,0 +1,13 @@
+# https://docs.dapr.io/reference/components-reference/supported-configuration-stores/redis-configuration-store/
+apiVersion: dapr.io/v1alpha1
+kind: Component
+metadata:
+  name: redis-configuration-store
+spec:
+  type: configuration.redis
+  version: v1
+  metadata:
+  - name: redisHost
+    value: localhost:6379
+  - name: redisPassword
+    value: ""
