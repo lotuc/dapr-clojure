@@ -120,6 +120,20 @@
                                     {:operation "delete"
                                      :request {:key "mm"}}]}))
 
+(defn publish
+  [pubsub-name topic data & {:keys [metadata]}]
+  (cond-> {:url (make-url "/v1.0/publish/%s/%s" pubsub-name topic)
+           :method :post
+           :headers {"content-type" "application/json"}
+           :body (json/generate-string data)}
+    (and metadata (seq metadata))
+    (assoc :query-params (make-metadata-query-params metadata))
+    true make-request))
+
+(comment
+  @(publish "redis-pubsub" "topic-raw" {:status "completed"})
+  @(publish "redis-pubsub" "topic-not-raw" {:status "completed"}))
+
 (defn publish-bulk [pubsub-name topic data & {:keys [metadata]}]
   (cond-> {:url (make-url "/v1.0-alpha1/publish/bulk/%s/%s" pubsub-name topic)
            :method :post

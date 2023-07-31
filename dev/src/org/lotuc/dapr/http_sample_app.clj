@@ -13,13 +13,31 @@
             :headers {"Content-Type" "application/json"}
             :body (json/generate-string dapr-config)})}])
 
+(defn decode-base64 [to-decode]
+  (String. (.decode (java.util.Base64/getDecoder) to-decode)))
+
 (defn make-subscribe-routes
   "https://docs.dapr.io/reference/api/pubsub_api/#optional-application-user-code-routes"
   [subscribes topic->handler]
   (->> subscribes
-       (map (fn [{:keys [route topic]}]
+       (map (fn [{:keys [route topic metadata]}]
               (when-let [handler (topic->handler topic)]
-                [route {:post handler}])))
+                [route
+                 {:post
+                  (fn [{:keys [body] :as req}]
+                    (let [body (-> body
+                                   slurp
+                                   (json/parse-string keyword))
+                          req (assoc req :body body)]
+                      (cond-> req
+                        (= "true" (get metadata :rawPayload))
+                        (update :body
+                                #(assoc % :data
+                                        (-> body
+                                            :data_base64
+                                            decode-base64
+                                            (json/parse-string keyword))))
+                        true handler)))}])))
        (filter some?)
        (into [["/dapr/subscribe"
                {:get (fn [_]
@@ -75,8 +93,9 @@
 (def topic-raw-reqs (atom []))
 (def topic-not-raw-reqs (atom []))
 
-(defn decode-base64 [to-decode]
-  (String. (.decode (java.util.Base64/getDecoder) to-decode)))
+(comment
+  (:data (:body (@topic-raw-reqs 0)))
+  (:body (@topic-not-raw-reqs 0)))
 
 (def router
   (-> (make-routes
@@ -92,11 +111,11 @@
                         :drainOngoingCallTimeout "10s"
                         :reentrancy {:enabled false}}]}
 
-        :subscriptions [{:pubsubname "pubsub"
+        :subscriptions [{:pubsubname "redis-pubsub"
                          :topic "topic-raw"
                          :route "/topic-raw"
                          :metadata {:rawPayload "true"}}
-                        {:pubsubname "pubsub"
+                        {:pubsubname "redis-pubsub"
                          :topic "topic-not-raw"
                          :route "/topic-not-raw"
                          :metadata {:rawPayload "false"}}]
