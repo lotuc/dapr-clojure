@@ -1,14 +1,22 @@
 (ns org.lotuc.dapr.internal.http-client-v1
   "Checkout https://docs.dapr.io/reference/api/ for Dapr API refenreces."
-  (:require [cheshire.core :as json]
-            [clojure.set :as set]
-            [org.httpkit.client :as hk-client]))
+  (:require
+   [cheshire.core :as json]
+   [clojure.set :as set]
+   [org.httpkit.client :as hk-client]))
 
+;; dapr sidecar http endpoint
 (def ^:dynamic *endpoint* "http://localhost:3500")
+
+;; org.httpkit.client/request options.
+(def ^:dynamic *request-options* {})
 
 (defn- make-url
   [path-fmt & args]
   (apply format (str *endpoint* path-fmt) (map hk-client/url-encode args)))
+
+(defn- make-request [opts]
+  (hk-client/request (merge *request-options* opts)))
 
 (defn- make-metadata-query-params [metadata]
   (->> metadata
@@ -17,52 +25,100 @@
 
 (defn invoke
   "PATCH/POST/GET/PUT/DELETE."
-  [app-id method-name {:keys [http-method args]}]
+  [app-id method-name args {:keys [http-method]}]
   (-> {:url (make-url "/v1.0/invoke/%s/method/%s" app-id method-name)
        :method http-method
        :headers {"content-type" "application/json"}
-       :body (json/generate-string args)}
-      hk-client/request))
+       :body (when args (json/generate-string args))}
+      make-request))
 
 (comment
-  @(invoke "app0" "add" {:http-method :post :args {:arg1 4 :arg2 2}}))
+  @(invoke "app0" "add" {:arg1 4 :arg2 2} {:http-method :post}))
 
-(defn state-get [state-store k]
-  (-> {:url (make-url "/v1.0/state/%s/%s" state-store k)}
-      hk-client/request))
+(defn state-get
+  [state-store k & {:keys [consistency metadata]}]
+  (cond-> {:url (make-url "/v1.0/state/%s/%s" state-store k)}
+    (and metadata (seq metadata))
+    (assoc :query-params (make-metadata-query-params metadata))
+    consistency
+    (assoc-in [:query-params :consistency] consistency)
+    true make-request))
 
 (comment
-  @(state-get "redis-state-store" "a"))
+  @(state-get "redis-state-store" "a" :consistency "strong"))
 
-(defn state-get-bulk [state-store ks & {:keys [metadata]}]
-  (-> {:url (make-url "/v1.0/state/%s/bulk" state-store)
-       :method :post
-       :query-params metadata
-       :body (json/generate-string {:keys ks})}
-      hk-client/request))
+(defn state-get-bulk
+  [state-store ks & {:keys [metadata]}]
+  (cond-> {:url (make-url "/v1.0/state/%s/bulk" state-store)
+           :method :post
+           :body (json/generate-string {:keys ks})}
+    (and metadata (seq metadata))
+    (assoc :query-params (make-metadata-query-params metadata))
+    true make-request))
 
 (comment
   @(state-get-bulk "redis-state-store" ["a" "b"]))
 
-(defn state-set [state-store kvs]
+(defn state-query
+  [state-store body & {:keys [metadata]}]
+  (cond-> {:url (make-url "/v1.0-alpha1/state/%s/query" state-store)
+           :method :post
+           :body body}
+    (and metadata (seq metadata))
+    (assoc :query-params (make-metadata-query-params metadata))
+    true make-request))
+
+(comment
+  @(state-query "redis-state-store"
+                (json/generate-string {})
+                :metadata {"contentType" "application/json"}))
+
+(defn state-save
+  [state-store states]
   (-> {:url (make-url "/v1.0/state/%s" state-store)
        :method :post
        :headers {"content-type" "application/json"}
-       :body (json/generate-string
-              (map (fn [[k v]] {"key" k "value" v}) kvs))}
-      hk-client/request))
+       :body (json/generate-string states)}
+      make-request))
 
 (comment
-  @(state-set "redis-state-store" {"a" "a-val" "b" "b-val"}))
+  @(state-save "redis-state-store"
+               [{:key "a" :value "a-val"}
+                {:key "b" :value "b-val"}]))
 
-(defn state-delete [state-store k]
-  (-> {:url (make-url "/v1.0/state/%s/%s" state-store k)
-       :method :delete
-       :headers {"content-type" "application/json"}}
-      hk-client/request))
+(defn state-delete
+  [state-store k & {:keys [concurrency consistency etag]}]
+  (cond-> {:url (make-url "/v1.0/state/%s/%s" state-store k)
+           :method :delete
+           :headers {"content-type" "application/json"}}
+    concurrency (assoc-in [:query-params :concurrency] concurrency)
+    consistency (assoc-in [:query-params :consistency] consistency)
+    etag (assoc-in [:headers "If-Match"] etag)
+    true make-request))
 
 (comment
   @(state-delete "redis-state-store" "a"))
+
+(defn state-transaction
+  "post/put."
+  [state-store {:keys [operations metadata]}
+   & {:keys [http-method]
+      request-metadata :metadata
+      :or {http-method :post}}]
+  (cond-> {:url (make-url "/v1.0/state/%s/transaction" state-store)
+           :method http-method
+           :headers {"content-type" "application/json"}
+           :body (json/generate-string {:operations operations :metadata metadata})}
+    (and request-metadata (seq request-metadata))
+    (assoc :query-params (make-metadata-query-params request-metadata))
+    true make-request))
+
+(comment
+  @(state-transaction "redis-state-store"
+                      {:operations [{:operation "upsert"
+                                     :request {:key "abc" :value "vv"}}
+                                    {:operation "delete"
+                                     :request {:key "mm"}}]}))
 
 (defn publish-bulk [pubsub-name topic data & {:keys [metadata]}]
   (cond-> {:url (make-url "/v1.0-alpha1/publish/bulk/%s/%s" pubsub-name topic)
@@ -71,7 +127,7 @@
            :body (json/generate-string data)}
     (and metadata (seq metadata))
     (assoc :query-params (make-metadata-query-params metadata))
-    true hk-client/request))
+    true make-request))
 
 (comment
   @(publish-bulk "redis-pubsub" "topic-raw"
@@ -95,7 +151,7 @@
     (assoc :headers {"content-type" "application/json"}
            :body (json/generate-string params))
 
-    true hk-client/request))
+    true make-request))
 
 (comment
   @(actor-call "type0" "42" "echo" "hello world"))
@@ -109,7 +165,7 @@
        :method http-method
        :headers {"content-type" "application/json"}
        :body (json/generate-string state-actions)}
-      hk-client/request))
+      make-request))
 
 (comment
   @(actor-state-set "type0" "42" [{:operation "upsert"
@@ -119,7 +175,7 @@
 (defn actor-state-get [actor-type actor-id k]
   (-> {:url (make-url "/v1.0/actors/%s/%s/state/%s"
                       actor-type actor-id k)}
-      hk-client/request))
+      make-request))
 
 (comment
   @(actor-state-get "type0" "42" "state0"))
@@ -136,7 +192,7 @@
        :headers {"content-type" "application/json"}
        :body (json/generate-string
               (-> reminder (assoc :dueTime due-time) (dissoc :due-time)))}
-      hk-client/request))
+      make-request))
 
 (comment
   @(actor-reminder-create "type0" "42" "reminder-42"
@@ -148,7 +204,7 @@
                       actor-type actor-id reminder-name)
        :method :get
        :headers {"content-type" "application/json"}}
-      hk-client/request))
+      make-request))
 
 (comment
   @(actor-reminder-get "type0" "42" "reminder-42"))
@@ -159,7 +215,7 @@
                       actor-type actor-id reminder-name)
        :method :delete
        :headers {"content-type" "application/json"}}
-      hk-client/request))
+      make-request))
 
 (comment
   @(actor-reminder-delete "type0" "42" "reminder-42"))
@@ -176,7 +232,7 @@
        :headers {"content-type" "application/json"}
        :body (json/generate-string
               (-> timer (assoc :dueTime due-time) (dissoc :due-time)))}
-      hk-client/request))
+      make-request))
 
 (comment
   @(actor-timer-create "type0" "42" "reminder-42"
@@ -188,7 +244,7 @@
                       actor-type actor-id timer-name)
        :method :delete
        :headers {"content-type" "application/json"}}
-      hk-client/request))
+      make-request))
 
 (comment
   @(actor-timer-delete "type0" "42" "reminder-42"))
@@ -204,7 +260,7 @@
        :body (json/generate-string {:data data
                                     :metadata metadata
                                     :operation operation})}
-      hk-client/request))
+      make-request))
 
 (comment
   @(invoke-binding "mqtt-binding"
@@ -221,7 +277,7 @@
     (and metadata (seq metadata))
     (assoc :query-params (make-metadata-query-params metadata))
 
-    true hk-client/request))
+    true make-request))
 
 (comment
   @(secret-get "localfile-secret-store" "secret0"))
@@ -233,7 +289,7 @@
     (and metadata (seq metadata))
     (assoc :query-params (make-metadata-query-params metadata))
 
-    true hk-client/request))
+    true make-request))
 
 (comment
   @(secret-get-bulk "localfile-secret-store"))
@@ -245,7 +301,7 @@
     (and keys (seq keys))
     (assoc :query-params {:key keys})
 
-    true hk-client/request))
+    true make-request))
 
 (comment
   @(configuration-get "redis-configuration-store")
@@ -258,7 +314,7 @@
     (and keys (seq keys))
     (assoc :query-params {:key keys})
 
-    true hk-client/request))
+    true make-request))
 
 (comment
   @(configuration-subscribe "redis-configuration-store"))
@@ -268,7 +324,7 @@
   (-> {:url (make-url "/v1.0/configuration/%s/%s/unsubscribe"
                       store-name subscription-id)
        :method :get}
-      hk-client/request))
+      make-request))
 
 (comment
   @(configuration-unsubscribe "redis-configuration-store"
@@ -283,7 +339,7 @@
                    :expiry-in-seconds :expiryInSeconds}
                   (set/rename-keys opts)
                   json/generate-string)}
-      hk-client/request))
+      make-request))
 
 (comment
   @(lock "redis-lock-store" {:resource-id "a" :lock-owner "lotuc"
@@ -297,7 +353,7 @@
                    :lock-owner :lockOwner}
                   (set/rename-keys opts)
                   json/generate-string)}
-      hk-client/request))
+      make-request))
 
 (comment
   @(unlock "redis-lock-store" {:resource-id "a" :lock-owner "lotuc"}))
@@ -309,7 +365,7 @@
            :method :post}
     instance-id (assoc :query-params {:instanceId instance-id})
 
-    true hk-client/request))
+    true make-request))
 
 (comment
   @(workflow-start "workflow-comp" "workflow-1" {:instance-id "42"}))
@@ -319,7 +375,7 @@
   (-> {:url (make-url "/v1.0-alpha1/workflows/%s/%s"
                       workflow-component-name instance-id)
        :method :get}
-      hk-client/request))
+      make-request))
 
 (comment
   @(workflow-get "workflow-comp" "42"))
@@ -329,7 +385,7 @@
   (-> {:url (make-url "/v1.0-alpha1/workflows/%s/%s/raiseEvent/%s"
                       workflow-component-name instance-id event-name)
        :method :post}
-      hk-client/request))
+      make-request))
 
 (comment
   @(workflow-raise-event "workflow-comp" "42" "hello"))
@@ -339,7 +395,7 @@
   (-> {:url (make-url "/v1.0-alpha1/workflows/%s/%s/%s"
                       workflow-component-name instance-id op-name)
        :method :post}
-      hk-client/request))
+      make-request))
 
 (defn workflow-terminate
   [workflow-component-name instance-id]
@@ -366,7 +422,7 @@
 (defn healthz []
   (-> {:url (make-url "/v1.0/healthz")
        :method :get}
-      hk-client/request))
+      make-request))
 
 (comment
   @(healthz))
@@ -374,7 +430,7 @@
 (defn metadata []
   (-> {:url (make-url "/v1.0/metadata")
        :method :get}
-      hk-client/request))
+      make-request))
 
 (comment
   @(metadata))
@@ -385,7 +441,7 @@
        :headers {"content-type" "text/plain"}
        :body attribute-value
        :method :put}
-      hk-client/request))
+      make-request))
 
 (comment
   @(metadata-add-label "custom-key" "coustom-val"))

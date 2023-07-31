@@ -1,7 +1,8 @@
 (ns org.lotuc.dapr.http-sample-app
-  (:require [cheshire.core :as json]
-            [clojure.string :as s]
-            [org.httpkit.server :as hk-server]))
+  (:require
+   [cheshire.core :as json]
+   [clojure.string :as s]
+   [org.httpkit.server :as hk-server]))
 
 (def topic-raw-reqs (atom []))
 (def topic-not-raw-reqs (atom []))
@@ -81,6 +82,7 @@
 
       (= uri "/add")
       {:status 200
+       :headers {"Content-Type" "application/json"}
        :body (let [{:keys [arg1 arg2]} (json/parse-string
                                         (slurp (:body req)) keyword)]
                (json/generate-string (+ arg1 arg2)))}

@@ -1,8 +1,9 @@
 (ns envs
-  (:require [babashka.process :as p]
-            [clojure.java.io :as io]
-            [clojure.set :as set]
-            [clojure.string :as s]))
+  (:require
+   [babashka.process :as p]
+   [clojure.java.io :as io]
+   [clojure.set :as set]
+   [clojure.string :as s]))
 
 (defn- env-set [env-string]
   (->> env-string
