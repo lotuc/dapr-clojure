@@ -2,7 +2,8 @@
  :deps {cheshire/cheshire {:mvn/version "5.11.0"}
         http-kit/http-kit {:mvn/version "2.7.0"}
         metosin/malli {:mvn/version "0.11.0"}
-        metosin/muuntaja {:mvn/version "0.6.8"}}
+        metosin/muuntaja {:mvn/version "0.6.8"}
+        metosin/reitit-core {:mvn/version "0.7.0-alpha5"}}
 
  :aliases
  {:dev {:extra-paths ["dev/src"]

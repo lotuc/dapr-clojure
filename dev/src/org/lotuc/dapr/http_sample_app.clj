@@ -1,8 +1,76 @@
 (ns org.lotuc.dapr.http-sample-app
   (:require
    [cheshire.core :as json]
-   [clojure.string :as s]
-   [org.httpkit.server :as hk-server]))
+   [org.httpkit.server :as hk-server]
+   [reitit.core :as r]))
+
+(defn make-dapr-config-route
+  "https://docs.dapr.io/reference/api/actors_api/#get-registered-actors"
+  [dapr-config]
+  ["/dapr/config"
+   {:get (fn [_]
+           {:status 200
+            :headers {"Content-Type" "application/json"}
+            :body (json/generate-string dapr-config)})}])
+
+(defn make-subscribe-routes
+  "https://docs.dapr.io/reference/api/pubsub_api/#optional-application-user-code-routes"
+  [subscribes topic->handler]
+  (->> subscribes
+       (map (fn [{:keys [route topic]}]
+              (when-let [handler (topic->handler topic)]
+                [route {:post handler}])))
+       (filter some?)
+       (into [["/dapr/subscribe"
+               {:get (fn [_]
+                       {:status 200
+                        :headers {"Content-Type" "application/json"}
+                        :body (json/generate-string subscribes)})}]])))
+
+(defn make-binding-routes
+  "https://docs.dapr.io/reference/api/bindings_api/#binding-endpoints"
+  [binding-name->handler]
+  (->> binding-name->handler
+       (map (fn [[binding-name handler]]
+              [(str "/" binding-name)
+               {:options (fn [_] {:status 200})
+                :post handler}]))
+       (into [])))
+
+(defn make-routes
+  [{:keys [dapr-config
+           subscriptions
+           topic->handler
+           binding-name->handler
+           service-routes]}]
+  (->> (concat (make-subscribe-routes subscriptions topic->handler)
+               (make-binding-routes binding-name->handler)
+               service-routes)
+       (filter some?)
+       (into [(make-dapr-config-route dapr-config)
+              ["/configuration/:store-name/:configuration-key"
+               {:post (fn [_] {:status 200})}]
+
+              ["/healthz"
+               {:get (fn [_] {:status 200})}]
+              ["/actors/:actor-type/:actor-id"
+               {:delete (fn [_] {:status 200})}]
+              ["/actors/:actor-type/:actor-id/method/remind/:remind"
+               {:put (fn [_] {:status 200})}]
+              ["/actors/:actor-type/:actor-id/method/timer/:timer"
+               {:put (fn [_] {:status 200})}]
+              ["/actors/:actor-type/:actor-id/method/:method"
+               {:put (fn [_] {:status 200})}]])))
+
+(defn handle [router req]
+  (let [{:keys [uri request-method]} req
+        {:keys [data path-params]} (r/match-by-path router uri)]
+    ;; (println "on" request-method uri)
+    (if-let [handler (let [r (get data request-method)]
+                       (if (fn? r) r (:handler r)))]
+      (handler (assoc req :path-params path-params))
+      (do (println "unkown request" uri)
+          {:status 404 :uri uri}))))
 
 (def topic-raw-reqs (atom []))
 (def topic-not-raw-reqs (atom []))
@@ -10,107 +78,53 @@
 (defn decode-base64 [to-decode]
   (String. (.decode (java.util.Base64/getDecoder) to-decode)))
 
-;; dapr sidecar 启动 (若给定了 app-port) 之后会访问 APP
-;; - /dapr/config
-;; - /dapr/subscribe
-(defn app [req]
-  (let [uri (:uri req)]
-    (cond
-      (s/starts-with? uri "/actors")
-      (case (:request-method req)
-        :delete
-        (let [[_ actor-type actor-id] (re-matches #"/actors/(.+)/(.+)" uri)]
-          (println actor-type actor-id "delete")
-          {:status 200
-           :body "ok"})
+(def router
+  (-> (make-routes
+       {:dapr-config {:entities ["type0" "type1"]
+                      :actorIdleTimeout "1h"
+                      :actorScanInterval "30s"
+                      :drainOngoingCallTimeout "30s"
+                      :drainRebalancedActors true
+                      :reentrancy {:enabled true :maxStackDepth 32}
+                      :entitiesConfig
+                      [{:entities ["type0"]
+                        :actorIdleTimeout "1m"
+                        :drainOngoingCallTimeout "10s"
+                        :reentrancy {:enabled false}}]}
 
-        :put
-        (let [[_ actor-type actor-id method-name]
-              (re-matches #"/actors/(.+)/(.+)/method/(.+)" uri)
+        :subscriptions [{:pubsubname "pubsub"
+                         :topic "topic-raw"
+                         :route "/topic-raw"
+                         :metadata {:rawPayload "true"}}
+                        {:pubsubname "pubsub"
+                         :topic "topic-not-raw"
+                         :route "/topic-not-raw"
+                         :metadata {:rawPayload "false"}}]
 
-              [_ t n]
-              (when method-name (re-matches #"(.+)/(.+)" method-name))]
-          (cond
-            (= t "remind") (println actor-type actor-id "remind" n)
-            (= t "timer") (println actor-type actor-id "timer" n)
-            :else (println actor-type actor-id "method" method-name))
-          {:status 200 :body (slurp (:body req))})
+        :topic->handler {"topic-raw"
+                         (fn [req]
+                           (swap! topic-raw-reqs conj req)
+                           {:status 200})
+                         "topic-not-raw"
+                         (fn [req]
+                           (swap! topic-not-raw-reqs conj req)
+                           {:status 200})}
 
-        {:status 404 :body "illegal method"})
+        :binding-name->handler {"mqtt-binding"
+                                (fn [{:keys [body]}]
+                                  (println "mqtt-binding:" (slurp body))
+                                  {:status 200})}
 
-      ;; mqtt-binding is the name of binding.
-      (= uri "/mqtt-binding")
-      (case (:request-method req)
-        :options
-        ;; {:status 404 :body "do not bind to be"}
-        {:status 200 :body "bound"}
-        :post
-        (do
-          (println "recv..."
-                   (get (:headers req) "topic")
-                   (slurp (:body req)))
-          {:status 200 :body "handled"})
+        :service-routes
+        ["/add"
+         {:post (fn [{:keys [body]}]
+                  (let [{:keys [arg1 arg2]}
+                        (json/parse-string (slurp body) keyword)]
+                    {:status 200
+                     :headers {"Content-Type" "application/json"}
+                     :body (json/generate-string (+ arg1 arg2))}))}]})
 
-        {:status 404 :body "illegal method"})
-
-      (s/starts-with? uri "/configuration")
-      (let [[_ store-name configuration-key]
-            (re-matches #"/configuration/(.+)/(.+)" uri)]
-        (println "recv configuration: " store-name configuration-key
-                 (slurp (:body req)))
-        {:status 200 :body ""})
-
-      (= uri "/dapr/config")
-      {:status 200
-       :headers {"Content-Type" "application/json"}
-       :body (json/generate-string
-              {:entities ["type0" "type1"]
-               :actorIdleTimeout "1h"
-               :actorScanInterval "30s"
-               :drainOngoingCallTimeout "30s"
-               :drainRebalancedActors true
-               :reentrancy {:enabled true :maxStackDepth 32}
-               :entitiesConfig
-               [{:entities ["type0"]
-                 :actorIdleTimeout "1m"
-                 :drainOngoingCallTimeout "10s"
-                 :reentrancy {:enabled false}}]})}
-
-      ;; actor.
-      (= uri "/healthz")
-      {:status 200 :body "ok"}
-
-      (= uri "/add")
-      {:status 200
-       :headers {"Content-Type" "application/json"}
-       :body (let [{:keys [arg1 arg2]} (json/parse-string
-                                        (slurp (:body req)) keyword)]
-               (json/generate-string (+ arg1 arg2)))}
-
-      (= uri "/dapr/subscribe")
-      {:status 200
-       :headers {"Content-Type" "application/json"}
-       :body (json/generate-string
-              [{:pubsubname "pubsub"
-                :topic "topic-raw"
-                :route "/topic-raw"
-                :metadata {:rawPayload "true"}}
-               {:pubsubname "pubsub"
-                :topic "topic-not-raw"
-                :route "/topic-not-raw"
-                :metadata {:rawPayload "false"}}])}
-
-      :else
-      (let [route-reqs {"/topic-raw" topic-raw-reqs
-                        "/topic-not-raw" topic-not-raw-reqs}]
-        (if-let [reqs (route-reqs uri)]
-          (do (swap! reqs conj
-                     (try (assoc req :body-slurp (slurp (:body req)))
-                          (catch Exception _ req)))
-              {:status 200
-               :headers {"Content-Type" "application/json"}})
-          (do (println "unkown request" uri)
-              {:status 404}))))))
+      r/router))
 
 (defonce server (atom nil))
 
@@ -118,6 +132,8 @@
   (swap! server
          (fn [v]
            (when v (v))
-           (hk-server/run-server app {:port 9393}))))
+           (hk-server/run-server
+            (partial handle router)
+            {:port 9393}))))
 
 (restart-server)

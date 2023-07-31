@@ -7,7 +7,7 @@ spec:
   version: v1
   metadata:
   - name: url
-    value: "tcp://172.16.8.73:1883"
+    value: "tcp://127.0.0.1:1883"
   - name: topic
     value: /abc/#
   - name: consumerID
