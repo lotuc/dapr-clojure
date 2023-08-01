@@ -1,7 +1,11 @@
 (ns org.lotuc.dapr.http-sample-app
   (:require
+   [babashka.process :as p]
    [cheshire.core :as json]
+   [clojure.java.io :as io]
+   [clojure.tools.logging :as log]
    [org.httpkit.server :as hk-server]
+   [org.lotuc.dapr.daprd :as daprd]
    [reitit.core :as r]))
 
 (defn make-dapr-config-route
@@ -87,7 +91,7 @@
     (if-let [handler (let [r (get data request-method)]
                        (if (fn? r) r (:handler r)))]
       (handler (assoc req :path-params path-params))
-      (do (println "unkown request" uri)
+      (do (println "unkown request" request-method uri)
           {:status 404 :uri uri}))))
 
 (def topic-raw-reqs (atom []))
@@ -135,24 +139,49 @@
                                   {:status 200})}
 
         :service-routes
-        ["/add"
-         {:post (fn [{:keys [body]}]
-                  (let [{:keys [arg1 arg2]}
-                        (json/parse-string (slurp body) keyword)]
-                    {:status 200
-                     :headers {"Content-Type" "application/json"}
-                     :body (json/generate-string (+ arg1 arg2))}))}]})
-
+        [["/add"
+          {:post (fn [{:keys [body]}]
+                   (let [{:keys [arg1 arg2]}
+                         (json/parse-string (slurp body) keyword)]
+                     {:status 200
+                      :headers {"Content-Type" "application/json"}
+                      :body (json/generate-string (+ arg1 arg2))}))}]]})
       r/router))
 
-(defonce server (atom nil))
+(def app-port 9393)
+(def app-id "app0")
 
-(defn restart-server []
-  (swap! server
+(defonce app-server (atom nil))
+(defonce app-daprd-process (atom nil))
+
+(defn restart-app-server []
+  (swap! app-server
          (fn [v]
-           (when v (v))
+           (when v
+             (log/info "stopping app server")
+             (hk-server/server-stop! v))
+           (log/info "starting app server")
            (hk-server/run-server
             (partial handle router)
-            {:port 9393}))))
+            {:port app-port
+             :legacy-return-value? false}))))
 
-(restart-server)
+(defn restart-app-daprd []
+  (swap! app-daprd-process
+         (fn [v]
+           (when v
+             (log/infof "stopping %s daprd server" app-id)
+             (p/destroy-tree v) @v)
+           (log/infof "starting %s daprd server" app-id)
+           (daprd/daprd
+            {:app-log-dir "/tmp/app-logs"
+             :app-id app-id
+             :dapr-http-port 3500
+             :resources-path (.getAbsolutePath
+                              (io/file "doc/http-client-components"))
+             :app-port (str app-port)}))))
+
+(restart-app-server)
+
+(comment
+  (restart-app-daprd))

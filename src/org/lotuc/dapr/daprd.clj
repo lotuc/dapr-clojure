@@ -47,13 +47,13 @@
                       (throw (Exception. (str "should be int: " help))))
 
                     (#{"string" "value"} val-hint)
-                    (when (or (not (string? v)) (empty? v))
+                    (when (or (and (string? v) (empty? v)) (nil? v))
                       (throw (Exception. (str "should not be empty: " help))))
 
                     :else
                     (log/warnf "unkown value type, skip checking: %s" val-hint))
 
-                  [(str "-" (name k)) v]))))]
+                  [(str "-" (name k)) (str v)]))))]
     (->> opts
          (map check-opt)
          (filter some?)
@@ -61,7 +61,7 @@
          (into []))))
 
 (defn daprd
-  [{:keys [daprd app-id app-log-dir]
+  [{:keys [daprd app-id app-log-dir dry-run?]
     :as opts}]
   (when-not app-id
     (throw (Exception. "app-id is not given")))
@@ -78,12 +78,22 @@
         process-opts {:out :write :out-file app-log-file}]
     (.mkdirs (.getParentFile app-log-file))
     (log/infof "daprd app %s log file: %s" app-id app-log-file)
-    (apply p/process process-opts daprd args)))
+    (if dry-run?
+      (->> args (into [daprd]))
+      (apply p/process process-opts daprd args))))
 
 (comment
+  (daprd {:dry-run? true
+          :app-log-dir "/tmp/app-logs"
+          :app-id "app1"
+          :dapr-grpc-port "3501"
+          :metrics-port "9091"
+          :enable-metrics false})
+
   (def r (daprd {:app-log-dir "/tmp/app-logs"
                  :app-id "app1"
                  :dapr-grpc-port "3501"
                  :metrics-port "9091"
                  :enable-metrics false}))
+
   (p/destroy-tree r))
