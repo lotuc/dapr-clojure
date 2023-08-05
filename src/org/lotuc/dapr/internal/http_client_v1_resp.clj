@@ -15,10 +15,12 @@
 (defn- throw-error [status response & {:keys [decoded-body] :as opts}]
   (let [{:keys [errorCode message]} (if (contains? opts :decoded-body)
                                       decoded-body
-                                      (decode-http-response response))]
-    (if errorCode
-      (throw (ex-info message {:error-code errorCode :response response}))
-      (throw (ex-info (str "Error with " status) {:response response})))))
+                                      (decode-http-response response))
+        error-message (if message message
+                          (str "Unkown Dapr Error. HTTP status code: " status))
+        error-data (cond-> {:response response}
+                     errorCode (assoc :error-code errorCode))]
+    (throw (ex-info error-message error-data))))
 
 (defmulti handle-resp (fn [request-type _response] request-type))
 
@@ -73,4 +75,7 @@
       (throw-error status response))))
 
 (defmethod handle-resp :default [_ response]
+  (let [{:keys [status]} response]
+    (when (and (>= status 200) (< status 300))
+      (throw-error status response)))
   response)
