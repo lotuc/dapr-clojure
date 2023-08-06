@@ -48,31 +48,32 @@
 (defonce app-server (atom nil))
 (defonce app-daprd-process (atom nil))
 
-(defn restart-app-server []
-  (swap! app-server
-         (fn [v]
-           (when v
-             (log/info "stopping app server")
-             (.shutdown v)
-             (..awaitTermination v))
+(defn reset-app-server [& {:keys [start]}]
+  (->> (fn [v]
+         (when v
+           (log/infof "[%s] stopping app server" app-id)
+           (.shutdown v)
+           (.awaitTermination v))
 
-           (log/info "starting app server")
+         (when start
+           (log/infof "[%s] starting app server" app-id)
            (let [server (-> {:port app-port
                              :services [(make-say-hello-world-service)]}
                             make-server)]
              (.start server)
-             server))))
+             server)))
+       (swap! app-server)))
 
-(defn restart-app-daprd []
-  (swap! app-daprd-process
-         (fn [v]
-           (when v
-             (log/infof "stopping %s daprd server" app-id)
-             (p/destroy-tree v) @v)
-           (log/infof "starting %s daprd server" app-id)
+(defn reset-app-daprd [& {:keys [start]}]
+  (->> (fn [v]
+         (when v
+           (log/infof "[%s] stopping daprd server" app-id)
+           (p/destroy-tree v) @v)
+         (when start
+           (log/infof "[%s] starting daprd server" app-id)
            (daprd/daprd
             {:app-log-dir "/tmp/app-logs"
-             :app-id "app1"
+             :app-id app-id
              :app-protocol "grpc"
              :dapr-listen-addresses "localhost"
              :dapr-grpc-port "3501"
@@ -80,17 +81,23 @@
              :resources-path (.getAbsolutePath
                               (io/file "doc/http-client-components"))
              :enable-metrics false
-             :app-port (str app-port)}))))
+             :app-port (str app-port)})))
+       (swap! app-daprd-process)))
 
 (def app-port 9394)
-(def app-id "app1")
+(def app-id "app-grpc-sample")
 
-(defn reset-app []
-  (restart-app-server)
-  (restart-app-daprd))
+(defn restart-app []
+  (reset-app-server :start true)
+  (reset-app-daprd :start true))
+
+(defn stop-app []
+  (reset-app-server)
+  (reset-app-daprd))
 
 (comment
-  (reset-app)
+  (restart-app)
+  (stop-app)
   @app-server
   @app-daprd-process)
 
@@ -99,17 +106,18 @@
   (def client (make-client client-channel))
   (.shutdownNow client-channel)
 
-  (->> (pb/make-SaveStateRequest
-        {:store-name "redis-state-store"
-         :states [(pb/make-StateItem
-                   {:key "mykey"
-                    :value (ByteString/copyFromUtf8 "Hello world")})]})
+  (->> {:store-name "redis-state-store"
+        :states [(pb/make-StateItem
+                  {:key "mykey"
+                   :value (ByteString/copyFromUtf8 "Hello world")})]}
+       pb/make-SaveStateRequest
        pb/proto-map->proto
        (.saveState client)
        pb/proto->proto-map)
 
-  (->> (pb/make-GetStateRequest {:store-name "redis-state-store"
-                                 :key "mykey"})
+  (->> {:store-name "redis-state-store"
+        :key "mykey"}
+       pb/make-GetStateRequest
        pb/proto-map->proto
        (.getState client)
        pb/proto->proto-map)
@@ -121,18 +129,21 @@
                      {:value (ByteString/copyFromUtf8
                               (json/generate-string {:arg1 4 :arg2 2}))})
               :http-extension (pb/make-HTTPExtension {:verb :post})})]
-    (->> (pb/make-InvokeServiceRequest {:id "app0" :message msg})
+    (->> {:id "app-http-sample" :message msg}
+         pb/make-InvokeServiceRequest
          pb/proto-map->proto
          (.invokeService client)
          pb/proto->proto-map))
 
+  ;; callin service implemented by itself
   (let [msg (pb/make-InvokeRequest
              {:method "say"
               :data (pb/make-protobuf-Any
                      {:value (ByteString/copyFromUtf8
                               (json/generate-string {:arg1 4 :arg2 2}))})
               :http-extension (pb/make-HTTPExtension {:verb :post})})]
-    (->> (pb/make-InvokeServiceRequest {:id "app1" :message msg})
-         pb/proto-map->proto
-         (.invokeService client)
-         pb/proto->proto-map)))
+    (->>  {:id app-id :message msg}
+          pb/make-InvokeServiceRequest
+          pb/proto-map->proto
+          (.invokeService client)
+          pb/proto->proto-map)))

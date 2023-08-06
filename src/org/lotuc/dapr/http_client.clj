@@ -9,7 +9,7 @@
        (hc-resp/handle-resp :invoke)))
 
 (comment
-  (invoke "app0" "add"
+  (invoke "app-http-sample" "add"
           {:arg1 4 :arg2 2}
           {:http-method :post}))
 

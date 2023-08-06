@@ -33,7 +33,7 @@
       make-request))
 
 (comment
-  @(invoke "app0" "add" {:arg1 4 :arg2 2} {:http-method :post}))
+  @(invoke "app-http-sample" "add" {:arg1 4 :arg2 2} {:http-method :post}))
 
 (defn state-get
   [state-store k & {:keys [consistency metadata]}]
