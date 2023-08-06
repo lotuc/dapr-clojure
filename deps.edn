@@ -4,7 +4,11 @@
         metosin/malli {:mvn/version "0.11.0"}
         metosin/muuntaja {:mvn/version "0.6.8"}
         babashka/process {:mvn/version "0.5.21"}
-        org.clojure/tools.logging {:mvn/version "1.2.4"}}
+        org.clojure/tools.logging {:mvn/version "1.2.4"}
+
+        potemkin/potemkin {:mvn/version "0.4.6"}
+        com.appsflyer/pronto {:mvn/version "2.1.2"}
+        io.dapr/dapr-sdk-autogen {:mvn/version "1.9.0"}}
 
  :aliases
  {:dev {:extra-paths ["dev/src"]

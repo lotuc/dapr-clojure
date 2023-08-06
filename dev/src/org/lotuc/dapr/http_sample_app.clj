@@ -148,8 +148,7 @@
                       :body (json/generate-string (+ arg1 arg2))}))}]]})
       r/router))
 
-(def app-port 9393)
-(def app-id "app0")
+(declare app-port app-id)
 
 (defonce app-server (atom nil))
 (defonce app-daprd-process (atom nil))
@@ -181,7 +180,14 @@
                               (io/file "doc/http-client-components"))
              :app-port (str app-port)}))))
 
-(restart-app-server)
+(def app-port 9393)
+(def app-id "app0")
+
+(defn reset-app []
+  (restart-app-server)
+  (restart-app-daprd))
 
 (comment
-  (restart-app-daprd))
+  (reset-app)
+  @app-server
+  @app-daprd-process)

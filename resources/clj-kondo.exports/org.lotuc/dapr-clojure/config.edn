@@ -1,0 +1,3 @@
+{:hooks {:macroexpand
+         {org.lotuc.dapr.internal.proto-utils/import-protos
+          hooks.org.lotuc.dapr.internal.proto-utils/import-protos}}}

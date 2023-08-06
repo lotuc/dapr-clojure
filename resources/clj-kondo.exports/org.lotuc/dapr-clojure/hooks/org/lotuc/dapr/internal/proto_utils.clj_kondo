@@ -1,0 +1,37 @@
+(ns hooks.org.lotuc.dapr.internal.proto-utils)
+
+(defn ^:private def-maker-parser
+  ([mapper clazz & {:keys [clazz->op-names]}]
+   (let [simple-name (second (re-matches #".+\$(.+)$" (str clazz)))
+
+         maker-name
+         (or (get-in clazz->op-names [clazz :maker])
+             (when simple-name (symbol (str "make-" simple-name))))
+         parser-name
+         (or (get-in clazz->op-names [clazz :parser])
+             (when simple-name (symbol (str "parse-" simple-name))))]
+     (if (and maker-name parser-name)
+       `((def ~maker-name
+           (fn
+             ([])
+             ([m#] (comment ~mapper) m#)))
+         (def ~parser-name
+           (fn [bytes#] (comment ~mapper) bytes#)))
+       '()))))
+
+(defmacro import-protos [mapper package-name classes]
+  (let [builtin-clazz->op-names {'Any {:maker 'make-protobuf-Any
+                                       :parser 'parse-protobuf-Any}
+                                 'Empty {:maker 'make-protobuf-Empty
+                                         :parser 'parse-protobuf-Empty}}
+        builtin-defs (mapcat
+                      #(def-maker-parser 'mapper %
+                         {:clazz->op-names builtin-clazz->op-names})
+                      ['Any 'Empty])
+        defs (->> classes (mapcat (partial def-maker-parser mapper)))
+        proto->proto-map 'proto->proto-map]
+    `(do (def ~package-name nil)
+         (def ~mapper nil)
+         (def ~proto->proto-map (fn [v#] (p/proto->proto-map ~mapper v#)))
+         ~@builtin-defs
+         ~@defs)))

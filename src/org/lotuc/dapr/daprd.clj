@@ -39,7 +39,7 @@
   (letfn [(check-opt [[k v]]
             (when-let [{:keys [val-hint help]} (daprd-opts k)]
               (if (nil? val-hint)
-                (when (boolean v) (str "-" (name k)))
+                (when (boolean v) [(str "-" (name k))])
                 (do
                   (cond
                     (= val-hint "int")
@@ -89,11 +89,16 @@
           :dapr-grpc-port "3501"
           :metrics-port "9091"
           :enable-metrics false})
+  daprd-opts
 
   (def r (daprd {:app-log-dir "/tmp/app-logs"
                  :app-id "app1"
+                 :app-protocol "grpc"
+                 :dapr-listen-addresses "localhost"
                  :dapr-grpc-port "3501"
                  :metrics-port "9091"
+                 :resources-path (.getAbsolutePath
+                                  (io/file "doc/http-client-components"))
                  :enable-metrics false}))
 
   (p/destroy-tree r))
