@@ -128,4 +128,22 @@
   (def dapr-grpc-client (make-client client-channel))
   (.shutdownNow client-channel)
 
-  (pb/make-StartWorkflowRequest))
+  (def given-instance-id (str (random-uuid)))
+  ;; The dapr's default workflow component is just 'dapr'
+  ;; This is found at Python's sdk implementation:
+  ;; https://github.com/dapr/python-sdk/blob/64e834b0a06f5b218efc941b8caf3683968b7208/examples/demo_workflow/app.py#L23
+  (def workflow-component "dapr")
+  (def start-res (->> (pb/make-StartWorkflowRequest
+                       {:instance-id given-instance-id
+                        :workflow-component workflow-component
+                        :workflow-name "demo-workflow"})
+                      pb/proto-map->proto
+                      (.startWorkflowAlpha1 dapr-grpc-client)
+                      pb/proto->proto-map))
+  (= given-instance-id (:instance-id start-res))
+  (->> (pb/make-GetWorkflowRequest
+        {:instance-id given-instance-id
+         :workflow-component workflow-component})
+       pb/proto-map->proto
+       (.getWorkflowAlpha1 dapr-grpc-client)
+       pb/proto->proto-map))
