@@ -18,3 +18,4 @@ pom.xml.asc
 !.lsp/config.edn
 
 out/
+.DS_Store
