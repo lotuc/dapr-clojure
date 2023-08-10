@@ -1,0 +1,13 @@
+{:paths ["target/classes"]
+ :deps {com.google.protobuf/protobuf-java {:mvn/version "3.23.4"}
+        javax.annotation/javax.annotation-api {:mvn/version "1.3.2"}
+        io.grpc/grpc-netty-shaded {:mvn/version "1.42.1"}
+        io.grpc/grpc-protobuf {:mvn/version "1.42.1"}
+        io.grpc/grpc-stub {:mvn/version "1.42.1"}}
+ :deps/prep-lib {:ensure "target/classes"
+                 :alias :build
+                 :fn prep-lib}
+ :aliases
+ {:build {:deps {io.github.clojure/tools.build {:git/tag "v0.9.4"
+                                                :git/sha "76b78fe"}}
+          :ns-default build}}}
