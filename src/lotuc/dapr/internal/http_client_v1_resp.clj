@@ -1,4 +1,4 @@
-(ns org.lotuc.dapr.internal.http-client-v1-resp
+(ns lotuc.dapr.internal.http-client-v1-resp
   (:require
    [muuntaja.core :as m]))
 

@@ -1,4 +1,4 @@
-(ns org.lotuc.dapr.internal.http-client-v1
+(ns lotuc.dapr.internal.http-client-v1
   "Checkout https://docs.dapr.io/reference/api/ for Dapr API refenreces."
   (:require
    [cheshire.core :as json]

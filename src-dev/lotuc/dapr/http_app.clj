@@ -1,4 +1,4 @@
-(ns org.lotuc.dapr.http-app
+(ns lotuc.dapr.http-app
   (:require
    [cheshire.core :as json]
    [clojure.tools.logging :as log]

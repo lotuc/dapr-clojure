@@ -1,4 +1,4 @@
-(ns org.lotuc.dapr.internal.proto-utils
+(ns lotuc.dapr.internal.proto-utils
   (:require
    [pronto.core :as p]
    [pronto.utils :as u]))

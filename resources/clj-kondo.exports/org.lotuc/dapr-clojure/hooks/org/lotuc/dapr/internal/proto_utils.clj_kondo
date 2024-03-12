@@ -1,4 +1,4 @@
-(ns hooks.org.lotuc.dapr.internal.proto-utils)
+(ns hooks.lotuc.dapr.internal.proto-utils)
 
 (defn ^:private def-maker-parser
   ([mapper clazz & {:keys [clazz->op-names]}]

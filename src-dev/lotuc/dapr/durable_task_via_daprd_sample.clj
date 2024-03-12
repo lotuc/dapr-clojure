@@ -1,26 +1,24 @@
-(ns org.lotuc.dapr.durable-task-via-daprd-sample
+(ns lotuc.dapr.durable-task-via-daprd-sample
   (:require
    [babashka.process :as p]
    [clojure.java.io :as io]
    [clojure.tools.logging :as log]
-   [org.lotuc.dapr.daprd :as daprd]
-   [org.lotuc.dapr.pb-v1 :as pb])
+   [lotuc.dapr.daprd :as daprd]
+   [lotuc.dapr.pb-v1 :as pb])
   (:import
-   (com.microsoft.durabletask
+   [com.microsoft.durabletask
     DurableTaskGrpcClientBuilder
     DurableTaskGrpcWorkerBuilder
-    TaskCanceledException
-    TaskOrchestration
     TaskActivity
     TaskActivityFactory
-    TaskOrchestrationFactory)
-   (io.dapr.v1
-    DaprGrpc)
-   (io.grpc
-    Grpc
-    InsecureChannelCredentials)
-   (java.time
-    Duration)))
+    TaskCanceledException
+    TaskOrchestration
+    TaskOrchestrationFactory]
+   [io.dapr.v1
+    DaprGrpc]
+   [io.grpc Grpc InsecureChannelCredentials]
+   [java.time
+    Duration]))
 
 (declare app-id)
 

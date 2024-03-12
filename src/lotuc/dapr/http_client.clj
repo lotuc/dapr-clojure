@@ -1,7 +1,7 @@
-(ns org.lotuc.dapr.http-client
+(ns lotuc.dapr.http-client
   (:require
-   [org.lotuc.dapr.internal.http-client-v1 :as hc]
-   [org.lotuc.dapr.internal.http-client-v1-resp :as hc-resp]))
+   [lotuc.dapr.internal.http-client-v1 :as hc]
+   [lotuc.dapr.internal.http-client-v1-resp :as hc-resp]))
 
 (defn invoke
   [app-id method args {:keys [http-method] :as opts}]

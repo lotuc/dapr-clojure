@@ -1,19 +1,19 @@
-(ns org.lotuc.dapr.grpc-sample-app
+(ns lotuc.dapr.grpc-sample-app
   (:require
    [babashka.process :as p]
    [cheshire.core :as json]
    [clojure.java.io :as io]
    [clojure.tools.logging :as log]
-   [org.lotuc.dapr.daprd :as daprd]
-   [org.lotuc.dapr.pb-v1 :as pb])
+   [lotuc.dapr.daprd :as daprd]
+   [lotuc.dapr.pb-v1 :as pb])
   (:import
-   (com.google.protobuf
-    ByteString)
-   (io.dapr.v1
-    DaprGrpc)
-   (io.dapr.v1
-    AppCallbackGrpc$AppCallbackImplBase)
-   (io.grpc Grpc InsecureChannelCredentials ServerBuilder)))
+   [com.google.protobuf
+    ByteString]
+   [io.dapr.v1
+    DaprGrpc]
+   [io.dapr.v1
+    AppCallbackGrpc$AppCallbackImplBase]
+   [io.grpc Grpc InsecureChannelCredentials ServerBuilder]))
 
 (defn make-say-hello-world-service []
   (proxy [AppCallbackGrpc$AppCallbackImplBase] []

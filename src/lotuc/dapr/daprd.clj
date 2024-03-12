@@ -1,11 +1,11 @@
-(ns org.lotuc.dapr.daprd
+(ns lotuc.dapr.daprd
   (:require
    [babashka.process :as p]
    [clojure.java.io :as io]
    [clojure.string :as s]
    [clojure.tools.logging :as log])
   (:import
-   (java.io File)))
+   [java.io File]))
 
 (defmacro ^:private parse-daprd-opts []
   (let [f (fn [[opts [opt-name opt-val-type opt-help] :as r] line]

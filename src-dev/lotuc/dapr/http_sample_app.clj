@@ -1,11 +1,11 @@
-(ns org.lotuc.dapr.http-sample-app
+(ns lotuc.dapr.http-sample-app
   (:require
    [babashka.process :as p]
    [cheshire.core :as json]
    [clojure.java.io :as io]
    [clojure.tools.logging :as log]
-   [org.lotuc.dapr.daprd :as daprd]
-   [org.lotuc.dapr.http-app :refer [start-dapr-app]]))
+   [lotuc.dapr.daprd :as daprd]
+   [lotuc.dapr.http-app :refer [start-dapr-app]]))
 
 (def topic-raw-reqs (atom []))
 (def topic-not-raw-reqs (atom []))

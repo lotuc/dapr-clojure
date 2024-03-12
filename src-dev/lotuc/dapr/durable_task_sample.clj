@@ -1,17 +1,17 @@
-(ns org.lotuc.dapr.durable-task-sample
+(ns lotuc.dapr.durable-task-sample
+  (:require
+   [clojure.string :as s])
   (:import
-   (com.microsoft.durabletask
-    TaskActivity
-    TaskOrchestrationFactory
-    NewOrchestrationInstanceOptions
+   [com.microsoft.durabletask
+    DurableTaskGrpcClientBuilder
     DurableTaskGrpcWorkerBuilder
+    NewOrchestrationInstanceOptions
+    TaskActivity
     TaskActivityFactory
     TaskOrchestration
-    DurableTaskGrpcClientBuilder)
-   (java.time
-    Duration))
-  (:require
-   [clojure.string :as s]))
+    TaskOrchestrationFactory]
+   [java.time
+    Duration]))
 
 (defn make-activity-chaining-worker
   "https://github.com/microsoft/durabletask-java/blob/8fd73b2a0f56d265709742c5ce280723abb119a3/samples/src/main/java/io/durabletask/samples/ChainingPattern.java"

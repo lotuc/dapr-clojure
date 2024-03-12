@@ -1,7 +1,7 @@
-(ns org.lotuc.dapr.http-client-test
+(ns lotuc.dapr.http-client-test
   (:use clojure.test)
   (:require
-   [org.lotuc.dapr.http-client :as sut]))
+   [lotuc.dapr.http-client :as sut]))
 
 (def state-store "redis-state-store")
 

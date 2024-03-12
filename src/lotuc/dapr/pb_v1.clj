@@ -1,15 +1,12 @@
-(ns org.lotuc.dapr.pb-v1
+(ns lotuc.dapr.pb-v1
   "https://github.com/dapr/dapr/tree/master/dapr/proto
   "
   (:require
-   [org.lotuc.dapr.internal.proto-utils :as proto-utils]
+   [lotuc.dapr.internal.proto-utils :as proto-utils]
    [potemkin]
    [pronto.core :as p])
   (:import
-   (io.dapr.v1
-    CommonProtos$HTTPExtension$Verb
-    CommonProtos$StateOptions$StateConcurrency
-    CommonProtos$StateOptions$StateConsistency)))
+   [io.dapr.v1 CommonProtos$HTTPExtension$Verb CommonProtos$StateOptions$StateConcurrency CommonProtos$StateOptions$StateConsistency]))
 
 (potemkin/import-vars
  [pronto.core
